@@ -3,6 +3,8 @@ resolution_type: GETDNS_RESOLUTION_STUB
 dns_transport_list:
   - GETDNS_TRANSPORT_TLS
 
+log_level: __STUBBY_LOG_LEVEL__
+
 tls_authentication: GETDNS_AUTHENTICATION_REQUIRED
 
 tls_query_padding_blocksize: 256
