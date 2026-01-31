@@ -1,10 +1,20 @@
 #!/bin/sh
 set -eu
 
-listen_port="${STUBBY_LISTEN_PORT:-53}"
-log_level="${STUBBY_LOG_LEVEL:-GETDNS_LOG_ERR}"
+LISTEN_PORT="${STUBBY__LISTEN_PORT:-53}"
+LOG_LEVEL="${STUBBY__LOG_LEVEL:-GETDNS_LOG_ERR}"
+IDLE_TIMEOUT="${STUBBY__IDLE_TIMEOUT:-10000}"
+EDNS_CLIENT_SUBNET_PRIVATE="${STUBBY__EDNS_CLIENT_SUBNET_PRIVATE:-1}"
+ROUND_ROBIN_UPSTREAMS="${STUBBY__ROUND_ROBIN_UPSTREAMS:-0}"
+TEMPLATE="/etc/stubby/stubby.yml.template"
+CONF="/etc/stubby/stubby.yml"
 
-sed "s/__STUBBY_LISTEN_PORT__/${listen_port}/g; s/__STUBBY_LOG_LEVEL__/${log_level}/g" \
-  /etc/stubby/stubby.yml.template > /etc/stubby/stubby.yml
+sed \
+  -e "s/__LISTEN_PORT__/${LISTEN_PORT}/g" \
+  -e "s/__LOG_LEVEL__/${LOG_LEVEL}/g" \
+  -e "s/__IDLE_TIMEOUT__/${IDLE_TIMEOUT}/g" \
+  -e "s/__EDNS_CLIENT_SUBNET_PRIVATE__/${EDNS_CLIENT_SUBNET_PRIVATE}/g" \
+  -e "s/__ROUND_ROBIN_UPSTREAMS__/${ROUND_ROBIN_UPSTREAMS}/g" \
+  "${TEMPLATE}" > "${CONF}"
 
-exec stubby -C /etc/stubby/stubby.yml -l
+exec stubby -C "${CONF}" -l
