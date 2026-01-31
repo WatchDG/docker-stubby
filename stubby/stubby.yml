@@ -10,7 +10,7 @@ edns_client_subnet_private: 1
 idle_timeout: 10000
 
 listen_addresses:
-  - 0.0.0.0@53
+  - 0.0.0.0@__STUBBY_LISTEN_PORT__
 
 round_robin_upstreams: 0
 
