@@ -7,7 +7,7 @@ RUN apk add --no-cache \
     update-ca-certificates
 
 RUN getent group stubby >/dev/null 2>&1 || addgroup -S stubby && \
-    getent passwd stubby >/dev/null 2>&1 || adduser -S -G stubby stubby && \
+    getent passwd stubby >/dev/null 2>&1 || adduser -D -H -s /sbin/nologin -S -G stubby stubby && \
     mkdir -p /etc/stubby /var/cache/stubby && \
     chown -R stubby:stubby /etc/stubby /var/cache/stubby
 
