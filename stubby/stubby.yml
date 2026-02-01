@@ -12,7 +12,7 @@ edns_client_subnet_private: __EDNS_CLIENT_SUBNET_PRIVATE__
 idle_timeout: __IDLE_TIMEOUT__
 
 listen_addresses:
-  - 0.0.0.0@__LISTEN_PORT__
+  __LISTEN_ADDRESSES__
 
 round_robin_upstreams: __ROUND_ROBIN_UPSTREAMS__
 
