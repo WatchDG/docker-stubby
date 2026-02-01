@@ -17,6 +17,4 @@ listen_addresses:
 round_robin_upstreams: __ROUND_ROBIN_UPSTREAMS__
 
 upstream_recursive_servers:
-  - address_data: 194.242.2.2
-    tls_port: 853
-    tls_auth_name: "dns.mullvad.net"
+  __UPSTREAM_RECURSIVE_SERVERS__
