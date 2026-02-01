@@ -14,7 +14,8 @@ Basic options (all optional, defaults are used when unset):
 
 List options (indexes `0..99`, all optional):
 - `STUBBY__DNS_TRANSPORT_LIST__<index>` (default at `0`: `GETDNS_TRANSPORT_TLS`)
-- `STUBBY__LISTEN_ADDRESSES__<index>` (default at `0`: `0.0.0.0@53`)
+- `STUBBY__LISTEN_ADDRESSES__<index>` (default at `0`: `0.0.0.0@8053`)
+  - when running as non-root, use ports `>=1024` (e.g. `8053`)
 - `STUBBY__UPSTREAM_RECURSIVE_SERVERS__<index>__ADDRESS_DATA`
   - default for index `0`: `194.242.2.2`
   - required for index `>0` if you want to add that server

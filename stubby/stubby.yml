@@ -8,7 +8,9 @@ log_level: __LOG_LEVEL__
 tls_authentication: __TLS_AUTHENTICATION__
 
 tls_query_padding_blocksize: __TLS_QUERY_PADDING_BLOCKSIZE__
+
 edns_client_subnet_private: __EDNS_CLIENT_SUBNET_PRIVATE__
+
 idle_timeout: __IDLE_TIMEOUT__
 
 listen_addresses:

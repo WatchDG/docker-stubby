@@ -34,7 +34,7 @@ while [ "${i}" -le 99 ]; do
   val=""
   eval "val=\${STUBBY__LISTEN_ADDRESSES__${i}-}"
   if [ "${i}" -eq 0 ] && [ -z "${val}" ]; then
-    val="0.0.0.0@53"
+    val="0.0.0.0@8053"
   fi
   if [ -n "${val}" ]; then
     if [ -z "${LISTEN_ADDRESSES}" ]; then
