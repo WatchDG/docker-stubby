@@ -5,7 +5,7 @@ dns_transport_list:
 
 log_level: __LOG_LEVEL__
 
-tls_authentication: GETDNS_AUTHENTICATION_REQUIRED
+tls_authentication: __TLS_AUTHENTICATION__
 
 tls_query_padding_blocksize: 256
 edns_client_subnet_private: __EDNS_CLIENT_SUBNET_PRIVATE__
