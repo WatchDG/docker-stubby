@@ -1,7 +1,7 @@
 resolution_type: GETDNS_RESOLUTION_STUB
 
 dns_transport_list:
-  - GETDNS_TRANSPORT_TLS
+  __DNS_TRANSPORT_LIST__
 
 log_level: __LOG_LEVEL__
 
