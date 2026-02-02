@@ -7,6 +7,8 @@ EDNS_CLIENT_SUBNET_PRIVATE="${STUBBY__EDNS_CLIENT_SUBNET_PRIVATE:-1}"
 ROUND_ROBIN_UPSTREAMS="${STUBBY__ROUND_ROBIN_UPSTREAMS:-0}"
 TLS_AUTHENTICATION="${STUBBY__TLS_AUTHENTICATION:-GETDNS_AUTHENTICATION_REQUIRED}"
 TLS_QUERY_PADDING_BLOCKSIZE="${STUBBY__TLS_QUERY_PADDING_BLOCKSIZE:-256}"
+DNSSEC="${STUBBY__DNSSEC:-GETDNS_EXTENSION_TRUE}"
+DNSSEC_RETURN_STATUS="${STUBBY__DNSSEC_RETURN_STATUS:-GETDNS_EXTENSION_TRUE}"
 TEMPLATE="/etc/stubby/stubby.yml.template"
 CONF="/etc/stubby/stubby.yml"
 
@@ -77,6 +79,21 @@ while [ "${i}" -le 99 ]; do
   i=$((i + 1))
 done
 
+DNSSEC_TRUST_ANCHORS=""
+i=0
+while [ "${i}" -le 99 ]; do
+  val=""
+  eval "val=\${STUBBY__DNSSEC_TRUST_ANCHORS__${i}-}"
+  if [ -n "${val}" ]; then
+    if [ -z "${DNSSEC_TRUST_ANCHORS}" ]; then
+      DNSSEC_TRUST_ANCHORS="dnssec_trust_anchors:\n  - \"${val}\""
+    else
+      DNSSEC_TRUST_ANCHORS="${DNSSEC_TRUST_ANCHORS}\n  - \"${val}\""
+    fi
+  fi
+  i=$((i + 1))
+done
+
 sed \
   -e "s/__LOG_LEVEL__/${LOG_LEVEL}/g" \
   -e "s/__IDLE_TIMEOUT__/${IDLE_TIMEOUT}/g" \
@@ -84,14 +101,21 @@ sed \
   -e "s/__ROUND_ROBIN_UPSTREAMS__/${ROUND_ROBIN_UPSTREAMS}/g" \
   -e "s/__TLS_AUTHENTICATION__/${TLS_AUTHENTICATION}/g" \
   -e "s/__TLS_QUERY_PADDING_BLOCKSIZE__/${TLS_QUERY_PADDING_BLOCKSIZE}/g" \
+  -e "s/__DNSSEC__/${DNSSEC}/g" \
+  -e "s/__DNSSEC_RETURN_STATUS__/${DNSSEC_RETURN_STATUS}/g" \
   "${TEMPLATE}" | awk \
   -v dns_list="${DNS_TRANSPORT_LIST}" \
   -v listen_list="${LISTEN_ADDRESSES}" \
   -v upstream_list="${UPSTREAM_RECURSIVE_SERVERS}" \
+  -v trust_list="${DNSSEC_TRUST_ANCHORS}" \
   '{
     if ($0 ~ /__DNS_TRANSPORT_LIST__/) { print dns_list; next }
     if ($0 ~ /__LISTEN_ADDRESSES__/) { print listen_list; next }
     if ($0 ~ /__UPSTREAM_RECURSIVE_SERVERS__/) { print upstream_list; next }
+    if ($0 ~ /__DNSSEC_TRUST_ANCHORS__/) {
+      if (trust_list != "") { print trust_list }
+      next
+    }
     print
   }' > "${CONF}"
 
