@@ -1,9 +1,9 @@
 FROM alpine:3
 
 RUN apk add --no-cache \
-      stubby \
-      ca-certificates \
-      drill && \
+    stubby \
+    ca-certificates \
+    drill && \
     update-ca-certificates
 
 RUN getent group stubby >/dev/null 2>&1 || addgroup -S stubby && \
