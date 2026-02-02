@@ -7,11 +7,14 @@ log_level: __LOG_LEVEL__
 
 tls_authentication: __TLS_AUTHENTICATION__
 
+tls_min_version: __TLS_MIN_VERSION__
+tls_max_version: __TLS_MAX_VERSION__
+
 dnssec: __DNSSEC__
 
 dnssec_return_status: __DNSSEC_RETURN_STATUS__
 
-__DNSSEC_TRUST_ANCHORS__
+# __DNSSEC_TRUST_ANCHORS__
 
 tls_query_padding_blocksize: __TLS_QUERY_PADDING_BLOCKSIZE__
 
