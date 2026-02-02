@@ -15,8 +15,6 @@ COPY stubby/stubby.yml /etc/stubby/stubby.yml.template
 
 EXPOSE 8053/udp 8053/tcp
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD drill @127.0.0.1 -p 8053 google.com || exit 1
-
 COPY entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
