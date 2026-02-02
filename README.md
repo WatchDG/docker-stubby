@@ -1,5 +1,9 @@
 # docker-stubby
 
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-watchdg%2Fstubby-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/watchdg/stubby)
+
+---
+
 Stubby is a local DNS resolver based on getdns that supports DNS-over-TLS and forwards queries to configured upstream servers.
 
 ## Environment variables
