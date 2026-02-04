@@ -1,0 +1,115 @@
+FROM alpine:3.16 AS builder
+
+RUN apk add --no-cache \
+    build-base \
+    git \
+    autoconf \
+    automake \
+    libtool \
+    gettext-dev \
+    gettext-static \
+    libidn2-dev \
+    libidn2-static \
+    libunistring-static \
+    yaml-dev \
+    yaml-static \
+    openssl-dev \
+    openssl-libs-static \
+    libevent-dev \
+    libevent-static \
+    ca-certificates \
+    musl-dev \
+    linux-headers \
+    cmake \
+    pkgconfig \
+    expat-dev \
+    fstrm-dev \
+    protobuf-c-dev
+
+ARG STUBBY_VERSION=v0.4.3
+
+WORKDIR /build
+RUN git clone --branch fix-openssl-1.1-build https://github.com/WatchDG/getdns.git && \
+    cd getdns && \
+    git submodule update --init --recursive && \
+    sed -i 's/find_package(Threads)/set(CMAKE_THREAD_LIBS_INIT "-lpthread")\nset(THREADS_PREFER_PTHREAD_FLAG ON)\nfind_package(Threads)/' CMakeLists.txt || true && \
+    mkdir -p build && \
+    cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local/getdns \
+        -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations -pthread" \
+        -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations -pthread" \
+        -DCMAKE_EXE_LINKER_FLAGS="-pthread" \
+        -DTHREADS_PREFER_PTHREAD_FLAG=ON \
+        -DCMAKE_THREAD_LIBS_INIT="-lpthread" \
+        -DENABLE_STUB_ONLY=ON \
+        -DUSE_LIBIDN2=ON \
+        -DUSE_LIBUNBOUND=ON \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DENABLE_SHARED=OFF \
+        -DENABLE_STATIC=ON \
+        -DENABLE_TESTING=OFF \
+        -DBUILD_TESTING=OFF && \
+    make -j$(nproc) CFLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations" && \
+    make install
+
+WORKDIR /build
+RUN git clone https://github.com/getdnsapi/stubby.git && \
+    cd stubby && \
+    git checkout ${STUBBY_VERSION} && \
+    echo '' >> CMakeLists.txt && \
+    echo 'set(LIBIDN2_LIBRARIES "/usr/lib/libidn2.a;/usr/lib/libunistring.a")' >> CMakeLists.txt && \
+    echo 'target_link_libraries(stubby PRIVATE ${LIBIDN2_LIBRARIES})' >> CMakeLists.txt && \
+    mkdir build && \
+    cd build && \
+    ls -l /usr/lib/libidn2.a /usr/lib/libunistring.a /usr/lib/libyaml.a /usr/lib/libevent.a && \
+    rm -f /usr/lib/libyaml.so* /usr/lib/libidn2.so* /usr/lib/libunbound.so* /usr/lib/libssl.so* /usr/lib/libcrypto.so* /usr/lib/libevent.so* && \
+    export PKG_CONFIG_PATH=/usr/local/getdns/lib/pkgconfig && \
+    export CMAKE_FIND_LIBRARY_SUFFIXES=".a" && \
+    export LDFLAGS="-static" && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_C_FLAGS="-static" \
+        -DCMAKE_EXE_LINKER_FLAGS="-static -L/usr/lib -L/usr/local/getdns/lib -Wl,-Bstatic" \
+        -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
+        -DLIBYAML_INCLUDE_DIR=/usr/include \
+        -DLIBYAML_LIBRARIES=/usr/lib/libyaml.a \
+        -DLIBIDN2_LIBRARIES="/usr/lib/libidn2.a;/usr/lib/libunistring.a" \
+        -DLIBUNBOUND_INCLUDE_DIR=/usr/include \
+        -DLIBUNBOUND_LIBRARIES=/usr/lib/libunbound.a \
+        -DGETDNS_LIBRARY=/usr/local/getdns/lib/libgetdns.a \
+        -DGETDNS_INCLUDE_DIR=/usr/local/getdns/include && \
+    make -j$(nproc) VERBOSE=1 LDFLAGS="-static -L/usr/lib -L/usr/local/getdns/lib" && \
+    make install && \
+    strip /usr/bin/stubby
+
+FROM golang:1.21-alpine AS config-builder
+
+WORKDIR /build
+COPY stubby-go.go .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o /stubby-go stubby-go.go
+
+FROM alpine:3 AS scratch-prep
+
+RUN echo "stubby:x:1000:1000:stubby user:/:/sbin/nologin" > /etc/passwd && \
+    echo "stubby:x:1000:" > /etc/group
+
+FROM scratch
+
+COPY --from=builder /usr/bin/stubby /usr/bin/stubby
+
+COPY --from=config-builder /stubby-go /stubby-go
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+COPY --from=scratch-prep /etc/passwd /etc/passwd
+COPY --from=scratch-prep /etc/group /etc/group
+
+COPY stubby/stubby.yml /etc/stubby/stubby.yml.template
+
+EXPOSE 8053/udp 8053/tcp
+
+ENTRYPOINT ["/stubby-go"]
