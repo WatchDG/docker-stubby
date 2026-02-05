@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM alpine:3.16 AS builder
+FROM alpine:3.16 AS builder
 
 RUN apk add --no-cache \
     build-base \
@@ -21,9 +21,7 @@ RUN apk add --no-cache \
     linux-headers \
     cmake \
     pkgconfig \
-    expat-dev \
-    fstrm-dev \
-    protobuf-c-dev
+    expat-dev
 
 ARG STUBBY_VERSION=v0.4.3
 
