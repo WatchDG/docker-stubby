@@ -103,5 +103,7 @@ COPY --from=builder /usr/bin/stubby /usr/bin/stubby
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder-go /stubby-go /stubby-go
 COPY stubby/stubby.yml /etc/stubby/stubby.yml.template
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_DIR=/etc/ssl/certs
 EXPOSE 8053/udp 8053/tcp
 ENTRYPOINT ["/stubby-go"]
