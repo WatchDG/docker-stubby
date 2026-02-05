@@ -1,4 +1,4 @@
-FROM alpine:3.16 AS builder
+FROM --platform=$BUILDPLATFORM alpine:3.16 AS builder
 
 RUN apk add --no-cache \
     build-base \
@@ -84,32 +84,26 @@ RUN git clone https://github.com/getdnsapi/stubby.git && \
     make install && \
     strip /usr/bin/stubby
 
-FROM golang:1.21-alpine AS builder-go
-
+FROM --platform=$BUILDPLATFORM golang:1.21-alpine AS builder-go
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /build
 COPY stubby-go.go .
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
   -a -installsuffix cgo -trimpath \
   -ldflags '-s -w -extldflags "-static"' \
   -o /stubby-go stubby-go.go
 
 FROM alpine:3 AS scratch-prepare
-
 RUN echo "stubby:x:1000:1000:stubby user:/:/sbin/nologin" > /etc/passwd && \
     echo "stubby:x:1000:" > /etc/group
 
 FROM scratch
-
 COPY --from=scratch-prepare /etc/passwd /etc/passwd
 COPY --from=scratch-prepare /etc/group /etc/group
-
 COPY --from=builder /usr/bin/stubby /usr/bin/stubby
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder-go /stubby-go /stubby-go
-
 COPY stubby/stubby.yml /etc/stubby/stubby.yml.template
-
 EXPOSE 8053/udp 8053/tcp
-
 ENTRYPOINT ["/stubby-go"]
