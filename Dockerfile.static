@@ -37,6 +37,9 @@ RUN git clone --branch fix-openssl-1.1-build https://github.com/WatchDG/getdns.g
     cd build && \
     cmake .. \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_CXX_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--gc-sections -Wl,-s" \
         -DCMAKE_INSTALL_PREFIX=/usr/local/getdns \
         -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations -pthread" \
         -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations -pthread" \
@@ -70,6 +73,9 @@ RUN git clone https://github.com/getdnsapi/stubby.git && \
     export LDFLAGS="-static" && \
     cmake .. \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_CXX_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--gc-sections -Wl,-s" \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_C_FLAGS="-static" \
         -DCMAKE_EXE_LINKER_FLAGS="-static -L/usr/lib -L/usr/local/getdns/lib -Wl,-Bstatic" \
