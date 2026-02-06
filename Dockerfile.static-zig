@@ -1,0 +1,117 @@
+FROM alpine:3.16 AS builder
+
+RUN apk add --no-cache \
+    build-base \
+    git \
+    autoconf \
+    automake \
+    libtool \
+    gettext-dev \
+    gettext-static \
+    libidn2-dev \
+    libidn2-static \
+    libunistring-static \
+    yaml-dev \
+    yaml-static \
+    openssl-dev \
+    openssl-libs-static \
+    libev-dev \
+    ca-certificates \
+    musl-dev \
+    linux-headers \
+    cmake \
+    pkgconfig \
+    expat-dev
+
+ARG STUBBY_VERSION=v0.4.3
+
+RUN rm -f /usr/lib/libyaml.so* /usr/lib/libidn2.so* /usr/lib/libunbound.so* /usr/lib/libssl.so* /usr/lib/libcrypto.so*
+
+WORKDIR /build
+RUN git clone --branch fix-openssl-1.1-build https://github.com/WatchDG/getdns.git && \
+    cd getdns && \
+    git submodule update --init --recursive && \
+    mkdir -p build && \
+    cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_CXX_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--gc-sections -Wl,-s" \
+        -DCMAKE_INSTALL_PREFIX=/usr/local/getdns \
+        -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations -pthread" \
+        -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations -pthread" \
+        -DCMAKE_EXE_LINKER_FLAGS="-pthread" \
+        -DENABLE_STUB_ONLY=ON \
+        -DUSE_LIBIDN2=ON \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DENABLE_SHARED=OFF \
+        -DENABLE_STATIC=ON \
+        -DENABLE_TESTING=OFF \
+        -DBUILD_TESTING=OFF && \
+    make -j$(nproc) CFLAGS="-Wno-deprecated-declarations -Wno-error=deprecated-declarations" && \
+    make install
+
+WORKDIR /build
+RUN git clone https://github.com/getdnsapi/stubby.git && \
+    cd stubby && \
+    git checkout ${STUBBY_VERSION} && \
+    echo '' >> CMakeLists.txt && \
+    echo 'set(LIBIDN2_LIBRARIES "/usr/lib/libidn2.a;/usr/lib/libunistring.a")' >> CMakeLists.txt && \
+    echo 'target_link_libraries(stubby PRIVATE ${LIBIDN2_LIBRARIES})' >> CMakeLists.txt && \
+    mkdir build && \
+    cd build && \
+    export PKG_CONFIG_PATH=/usr/local/getdns/lib/pkgconfig && \
+    export CMAKE_FIND_LIBRARY_SUFFIXES=".a" && \
+    export LDFLAGS="-static" && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_CXX_FLAGS_RELEASE="-Os -ffunction-sections -fdata-sections" \
+        -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--gc-sections -Wl,-s" \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_C_FLAGS="-static" \
+        -DCMAKE_EXE_LINKER_FLAGS="-static -L/usr/lib -L/usr/local/getdns/lib -Wl,-Bstatic" \
+        -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
+        -DLIBYAML_INCLUDE_DIR=/usr/include \
+        -DLIBYAML_LIBRARIES=/usr/lib/libyaml.a \
+        -DLIBIDN2_LIBRARIES="/usr/lib/libidn2.a;/usr/lib/libunistring.a" \
+        -DGETDNS_LIBRARY=/usr/local/getdns/lib/libgetdns.a \
+        -DGETDNS_INCLUDE_DIR=/usr/local/getdns/include && \
+    make -j$(nproc) VERBOSE=1 LDFLAGS="-static -L/usr/lib -L/usr/local/getdns/lib" && \
+    make install && \
+    strip /usr/bin/stubby
+
+FROM --platform=$BUILDPLATFORM watchdg/zig:v0.15.2 AS builder-zig
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /build
+COPY stubby-zig.zig .
+RUN case "${TARGETARCH}" in \
+      amd64) ARCH="x86_64" ;; \
+      arm64) ARCH="aarch64" ;; \
+      *) ARCH="${TARGETARCH}" ;; \
+    esac && \
+    zig build-exe \
+      stubby-zig.zig \
+      -O ReleaseSmall \
+      -target ${ARCH}-${TARGETOS}-musl \
+      -fstrip \
+      --name stubby-zig && \
+    cp stubby-zig /stubby-zig
+
+FROM alpine:3 AS scratch-prepare
+RUN echo "stubby:x:1000:1000:stubby user:/:/sbin/nologin" > /etc/passwd && \
+    echo "stubby:x:1000:" > /etc/group
+
+FROM scratch
+COPY --from=scratch-prepare /etc/passwd /etc/passwd
+COPY --from=scratch-prepare /etc/group /etc/group
+COPY --from=builder /usr/bin/stubby /usr/bin/stubby
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder-zig /stubby-zig /stubby-zig
+COPY stubby/stubby.yml /etc/stubby/stubby.yml.template
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_DIR=/etc/ssl/certs
+EXPOSE 8053/udp 8053/tcp
+ENTRYPOINT ["/stubby-zig"]
