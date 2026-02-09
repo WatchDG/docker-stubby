@@ -1,5 +1,9 @@
 FROM alpine:3.16 AS builder
 
+ARG TARGETARCH
+ARG UPX_VERSION=5.1.0
+ARG STUBBY_VERSION=v0.4.3
+
 RUN apk add --no-cache \
     build-base \
     git \
@@ -21,9 +25,15 @@ RUN apk add --no-cache \
     linux-headers \
     cmake \
     pkgconfig \
-    expat-dev
+    expat-dev \
+    xz \
+    curl
 
-ARG STUBBY_VERSION=v0.4.3
+RUN curl -L -o /tmp/upx.tar.xz "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-${TARGETARCH}_linux.tar.xz" && \
+    tar -xJf /tmp/upx.tar.xz -C /tmp && \
+    mv /tmp/upx-${UPX_VERSION}-${TARGETARCH}_linux/upx /usr/local/bin/upx && \
+    chmod +x /usr/local/bin/upx && \
+    rm -rf /tmp/upx*
 
 RUN rm -f /usr/lib/libyaml.so* /usr/lib/libidn2.so* /usr/lib/libunbound.so* /usr/lib/libssl.so* /usr/lib/libcrypto.so*
 
@@ -80,7 +90,8 @@ RUN git clone https://github.com/getdnsapi/stubby.git && \
         -DGETDNS_INCLUDE_DIR=/usr/local/getdns/include && \
     make -j$(nproc) VERBOSE=1 LDFLAGS="-static -L/usr/lib -L/usr/local/getdns/lib" && \
     make install && \
-    strip /usr/bin/stubby
+    strip -s /usr/bin/stubby && \
+    upx --best --lzma /usr/bin/stubby
 
 FROM --platform=$BUILDPLATFORM watchdg/zig:v0.15.2 AS builder-zig
 ARG TARGETOS
@@ -100,7 +111,7 @@ RUN case "${TARGETARCH}" in \
       --name stubby-zig && \
     cp stubby-zig /stubby-zig
 
-FROM alpine:3 AS scratch-prepare
+FROM --platform=$BUILDPLATFORM alpine:3 AS scratch-prepare
 RUN echo "stubby:x:1000:1000:stubby user:/:/sbin/nologin" > /etc/passwd && \
     echo "stubby:x:1000:" > /etc/group
 
