@@ -1,5 +1,9 @@
 FROM alpine:3.16 AS builder
 
+ARG TARGETARCH
+ARG UPX_VERSION=5.1.0
+ARG STUBBY_VERSION=v0.4.3
+
 RUN apk add --no-cache \
     build-base \
     git \
@@ -21,9 +25,15 @@ RUN apk add --no-cache \
     linux-headers \
     cmake \
     pkgconfig \
-    expat-dev
+    expat-dev \
+    xz \
+    curl
 
-ARG STUBBY_VERSION=v0.4.3
+RUN curl -L -o /tmp/upx.tar.xz "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-${TARGETARCH}_linux.tar.xz" && \
+    tar -xJf /tmp/upx.tar.xz -C /tmp && \
+    mv /tmp/upx-${UPX_VERSION}-${TARGETARCH}_linux/upx /usr/local/bin/upx && \
+    chmod +x /usr/local/bin/upx && \
+    rm -rf /tmp/upx*
 
 RUN rm -f /usr/lib/libyaml.so* /usr/lib/libidn2.so* /usr/lib/libunbound.so* /usr/lib/libssl.so* /usr/lib/libcrypto.so*
 
@@ -80,19 +90,28 @@ RUN git clone https://github.com/getdnsapi/stubby.git && \
         -DGETDNS_INCLUDE_DIR=/usr/local/getdns/include && \
     make -j$(nproc) VERBOSE=1 LDFLAGS="-static -L/usr/lib -L/usr/local/getdns/lib" && \
     make install && \
-    strip /usr/bin/stubby
+    strip -s /usr/bin/stubby && \
+    upx --best --lzma /usr/bin/stubby
 
-FROM --platform=$BUILDPLATFORM golang:1.21-alpine AS builder-go
+FROM --platform=$BUILDPLATFORM watchdg/zig:v0.15.2 AS builder-zig
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /build
-COPY stubby-go.go .
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-  -a -installsuffix cgo -trimpath \
-  -ldflags '-s -w -extldflags "-static"' \
-  -o /stubby-go stubby-go.go
+COPY stubby-zig.zig .
+RUN case "${TARGETARCH}" in \
+      amd64) ARCH="x86_64" ;; \
+      arm64) ARCH="aarch64" ;; \
+      *) ARCH="${TARGETARCH}" ;; \
+    esac && \
+    zig build-exe \
+      stubby-zig.zig \
+      -O ReleaseSmall \
+      -target ${ARCH}-${TARGETOS}-musl \
+      -fstrip \
+      --name stubby-zig && \
+    cp stubby-zig /stubby-zig
 
-FROM alpine:3 AS scratch-prepare
+FROM --platform=$BUILDPLATFORM alpine:3 AS scratch-prepare
 RUN echo "stubby:x:1000:1000:stubby user:/:/sbin/nologin" > /etc/passwd && \
     echo "stubby:x:1000:" > /etc/group
 
@@ -101,9 +120,9 @@ COPY --from=scratch-prepare /etc/passwd /etc/passwd
 COPY --from=scratch-prepare /etc/group /etc/group
 COPY --from=builder /usr/bin/stubby /usr/bin/stubby
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=builder-go /stubby-go /stubby-go
+COPY --from=builder-zig /stubby-zig /stubby-zig
 COPY stubby/stubby.yml /etc/stubby/stubby.yml.template
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_DIR=/etc/ssl/certs
 EXPOSE 8053/udp 8053/tcp
-ENTRYPOINT ["/stubby-go"]
+ENTRYPOINT ["/stubby-zig"]
